@@ -7,6 +7,21 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/main/Dotnet.gitignore
 
+##KJX's very own list of dafny excludes
+*.cpp
+*.cs
+*.csproj
+*.csv
+*.deps.json
+*.dfi
+*.dft
+*.dll
+*.doo
+*.fls
+*.pdb
+*.rs
+*.runtimeconfig.json
+
 # Build results
 [Dd]ebug/
 [Dd]ebugPublic/
