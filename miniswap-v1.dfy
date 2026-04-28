@@ -320,10 +320,15 @@ method dealV0(sellerMoney : Account, sellerGoods : Account, price : nat,
 //works if we require all Accounts are good;
 //doesn't work without that requirement.
 
-   requires sellerMoney.obeys() && sellerMoney.valid()
-   requires sellerGoods.obeys() && sellerGoods.valid()
-   requires buyerMoney.obeys()  && buyerMoney.valid()
-   requires buyerGoods.obeys()  && buyerGoods.valid()
+   requires sellerMoney.obeys()
+   requires sellerGoods.obeys()
+   requires buyerMoney.obeys()
+   requires buyerGoods.obeys()
+
+   requires sellerMoney.obeys() ==> sellerMoney.valid()
+   requires sellerGoods.obeys() ==> sellerGoods.valid()
+   requires buyerMoney.obeys()  ==> buyerMoney.valid()
+   requires buyerGoods.obeys()  ==> buyerGoods.valid()
 
    requires sellerMoney.canDepositFrom(price, buyerMoney)
    requires buyerGoods.canDepositFrom(amount, sellerGoods)
@@ -352,7 +357,71 @@ method dealV0(sellerMoney : Account, sellerGoods : Account, price : nat,
 }
 
 
-predicate not(x : bool) {!x}
+
+method dealV1(sellerMoney : Account, sellerGoods : Account, price : nat,
+               buyerMoney : Account, buyerGoods : Account,  amount : nat) returns ( b : bool )
+//a non-escrow deal!
+//works if we require all Accounts are good;
+//doesn't work without that requirement.
+
+   requires sellerMoney.obeys()
+   requires sellerGoods.obeys()
+   requires buyerMoney.obeys()
+   requires buyerGoods.obeys()
+
+   requires sellerMoney.obeys() ==> sellerMoney.valid()
+   requires sellerGoods.obeys() ==> sellerGoods.valid()
+   requires buyerMoney.obeys()  ==> buyerMoney.valid()
+   requires buyerGoods.obeys()  ==> buyerGoods.valid()
+
+   requires sellerMoney.canDepositFrom(price, buyerMoney)
+   requires buyerGoods.canDepositFrom(amount, sellerGoods)
+
+   requires (sellerMoney.myBank != buyerGoods.myBank)
+   requires (sellerGoods.myBank != buyerMoney.myBank)
+
+   modifies sellerMoney.myBank`ledger, buyerMoney.myBank`ledger
+   modifies sellerGoods.myBank`ledger, buyerGoods.myBank`ledger
+
+   ensures  b ==> (sellerMoney.balance() == old(sellerMoney.balance()) + price)
+   ensures  b ==> (buyerMoney.balance() == old(buyerMoney.balance()) - price)
+   ensures  b ==> (buyerGoods.balance() == old(buyerGoods.balance()) + amount)
+   ensures  b ==> (sellerGoods.balance() == old(sellerGoods.balance()) - amount)
+  {
+      var b1 := sellerMoney.depositFrom(price, buyerMoney);
+
+      if (! b1) { return false; }
+
+      var b2 := buyerGoods.depositFrom(amount, sellerGoods);
+
+      if (! b2) { return false; }
+
+      b := b1 && b2;
+      assert b;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -473,7 +542,7 @@ class BadAccount extends Account {
     {
         myBank.ledger := myBank.ledger
             [from := ((myBank.ledger[from]) - amount)]
-            [this := ((myBank.ledger[this]) + amount)];
+            [this := ((myBank.ledger[this]) + (amount * 2))];
 
         assert valid();
 
@@ -485,3 +554,95 @@ class BadAccount extends Account {
   // function balance() : (b : nat)
   //      reads myBank  {if (this in myBank.ledger.Keys) then (myBank.ledger[this]) else (0)}
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+predicate not(x : bool) {!x}
