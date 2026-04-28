@@ -19,7 +19,7 @@ trait Account {
 
     modifies myBank`ledger
 
-    ensures obeys() ==> account.obeys()
+    ensures obeys() ==> account.obeys() && account.valid()
 
     ensures obeys() ==> (account.myBank == myBank)
     ensures obeys() ==> (account in myBank.ledger)
@@ -29,7 +29,7 @@ trait Account {
     ensures obeys() ==> valid()
 
 
-  method depositFrom(amount : nat, from : Account) returns (b : bool)
+  method deposit(amount : nat, from : Account) returns (b : bool)
     requires obeys() ==> valid()
 
     modifies myBank`ledger
@@ -148,7 +148,7 @@ class GoodAccount extends Account {
     }
 
 
-  method {:isolate_assertions} depositFrom(amount : nat, from : Account) returns (b : bool)
+  method {:isolate_assertions} deposit(amount : nat, from : Account) returns (b : bool)
     requires obeys() ==> valid()
 
     modifies myBank`ledger
@@ -249,7 +249,7 @@ assert forall account <- m1.ledger.Keys :: (account.myBank == m1) && (account is
     assert sm.obeys();  assert sm.valid();
     assert bm.obeys();  assert bm.valid();
 
-  var b :=  sm.depositFrom(7,bm);
+  var b :=  sm.deposit(7,bm);
 
   print "b=",b," sm=",sm.balance(),"  bm=",bm.balance(),"\n";
 
@@ -300,7 +300,7 @@ assert sm.obeys() && bm.obeys();
 assert sm.canDepositFrom(7,bm);
 
 assert HERE:  (sm.obeys() && bm.obeys() && old(sm.canDepositFrom(7, bm)));
-  b :=  sm.depositFrom(7,bm);
+  b :=  sm.deposit(7,bm);
 
   assert old@HERE(sm.obeys() && bm.obeys() && (sm.canDepositFrom(7, bm)));
 
@@ -344,11 +344,11 @@ method dealV0(sellerMoney : Account, sellerGoods : Account, price : nat,
    ensures  b ==> (buyerGoods.balance() == old(buyerGoods.balance()) + amount)
    ensures  b ==> (sellerGoods.balance() == old(sellerGoods.balance()) - amount)
   {
-      var b1 := sellerMoney.depositFrom(price, buyerMoney);
+      var b1 := sellerMoney.deposit(price, buyerMoney);
 
       if (! b1) { return false; }
 
-      var b2 := buyerGoods.depositFrom(amount, sellerGoods);
+      var b2 := buyerGoods.deposit(amount, sellerGoods);
 
       if (! b2) { return false; }
 
@@ -358,16 +358,13 @@ method dealV0(sellerMoney : Account, sellerGoods : Account, price : nat,
 
 
 
-method dealV1(sellerMoney : Account, sellerGoods : Account, price : nat,
-               buyerMoney : Account, buyerGoods : Account,  amount : nat) returns ( b : bool )
-//a non-escrow deal!
-//works if we require all Accounts are good;
-//doesn't work without that requirement.
+method {:isolate_assertions} dealV2(sellerMoney : Account, sellerGoods : Account, price : nat,
+               buyerMoney : Account, buyerGoods : Account,  amount : nat) returns ( res : bool )
 
-   requires sellerMoney.obeys()
-   requires sellerGoods.obeys()
-   requires buyerMoney.obeys()
-   requires buyerGoods.obeys()
+
+//escrow deal - highly sequential version
+//note **doesn't handle exceptions properly**
+//if Dafny has "exceptions" which I don't think it really does
 
    requires sellerMoney.obeys() ==> sellerMoney.valid()
    requires sellerGoods.obeys() ==> sellerGoods.valid()
@@ -383,21 +380,49 @@ method dealV1(sellerMoney : Account, sellerGoods : Account, price : nat,
    modifies sellerMoney.myBank`ledger, buyerMoney.myBank`ledger
    modifies sellerGoods.myBank`ledger, buyerGoods.myBank`ledger
 
-   ensures  b ==> (sellerMoney.balance() == old(sellerMoney.balance()) + price)
-   ensures  b ==> (buyerMoney.balance() == old(buyerMoney.balance()) - price)
-   ensures  b ==> (buyerGoods.balance() == old(buyerGoods.balance()) + amount)
-   ensures  b ==> (sellerGoods.balance() == old(sellerGoods.balance()) - amount)
+  //  ensures  b ==> (sellerMoney.balance() == old(sellerMoney.balance()) + price)
+  //  ensures  b ==> (buyerMoney.balance() == old(buyerMoney.balance()) - price)
+  //  ensures  b ==> (buyerGoods.balance() == old(buyerGoods.balance()) + amount)
+  //  ensures  b ==> (sellerGoods.balance() == old(sellerGoods.balance()) - amount)
   {
-      var b1 := sellerMoney.depositFrom(price, buyerMoney);
 
-      if (! b1) { return false; }
+  //setup and validate Money purses
+  var escrowMoney := sellerMoney.sprout();
+                                                          assert sellerMoney.obeys() ==> sellerMoney.valid();
+                                                          assert sellerMoney.obeys() ==> escrowMoney.obeys();
+                                                          assert sellerMoney.obeys() ==> (escrowMoney.obeys() ==> escrowMoney.valid());
+                                                          assert (sellerMoney.obeys() && escrowMoney.obeys()) ==> (sellerMoney.obeys() ==> escrowMoney.valid());
+                                                          assert (sellerMoney.obeys() ==> escrowMoney.valid());
+                                                          assert  sellerMoney.obeys() ==> (sellerMoney.myBank == escrowMoney.myBank);
+assume sellerMoney.obeys();
 
-      var b2 := buyerGoods.depositFrom(amount, sellerGoods);
+  res := escrowMoney.deposit(0,sellerMoney);
+  if (!res)  {return false;}
+  res := buyerMoney.deposit(0,escrowMoney);
+  if (!res)  {return false;}
+  res := escrowMoney.deposit(0,buyerMoney);
+  if (!res)  {return false;}
 
-      if (! b2) { return false; }
+  //setup and validate Goods purses
+  var escrowGoods := buyerGoods.sprout();
+  res := escrowGoods.deposit(0,buyerGoods);
+  if (!res)  {return false;}
+  res := sellerGoods.deposit(0,escrowGoods);
+  if (!res)  {return false;}
+  res := escrowGoods.deposit(0,sellerGoods);
+  if (!res)  {return false;}
 
-      b := b1 && b2;
-      assert b;
+  res := escrowMoney.deposit(price,buyerMoney);
+  if (!res)  {return false;}
+  res := escrowGoods.deposit(amount,sellerGoods);
+  if (!res)  {
+    var tmp1 := buyerMoney.deposit(price,escrowMoney);
+    return false;}
+
+  var tmp2 := sellerMoney.deposit(price,escrowMoney);
+  var tmp3 := buyerGoods.deposit(amount,escrowGoods);
+
+  return true;
 }
 
 
@@ -517,7 +542,7 @@ class BadAccount extends Account {
     }
 
 
-  method {:isolate_assertions} depositFrom(amount : nat, from : Account) returns (b : bool)
+  method {:isolate_assertions} deposit(amount : nat, from : Account) returns (b : bool)
     requires obeys() ==> valid()
 
     modifies myBank`ledger
