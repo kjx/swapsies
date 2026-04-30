@@ -1,11 +1,11 @@
 //a more minimal attempt
 
-trait Bank {
+trait Bank extends object {
    var ledger : map<Account,nat>
  }
 
 
-trait Account {
+trait Account extends object {
 
   opaque ghost predicate obeys() //reads this
 
@@ -15,22 +15,29 @@ trait Account {
   const myBank : Bank //Dafny won't easilly let us say this, but let's assume this is instance-private
 
   method sprout() returns (account : Account)
-    requires obeys() ==> valid()
+    requires valid()
+    requires obeys() ==> (forall account <- myBank.ledger :: account.valid())
 
-    modifies myBank`ledger
+   modifies myBank`ledger
 
-    ensures obeys() ==> account.obeys() && account.valid()
-
-    ensures obeys() ==> (account.myBank == myBank)
+    ensures account.valid()
+    ensures account.myBank == myBank
     ensures obeys() ==> (account in myBank.ledger)
     ensures obeys() ==> (fresh(account))
+
+    ensures obeys() ==> account.obeys()
+
     ensures obeys() ==> (myBank.ledger == old(myBank.ledger)[account := 0])
     ensures obeys() ==> (forall k <- old(myBank.ledger.Keys) :: myBank.ledger[k] == old(myBank.ledger[k]))
-    ensures obeys() ==> valid()
+    ensures obeys() ==> (forall account <- myBank.ledger :: account.valid())
+
+    ensures myBank.ledger.Keys >= old(myBank.ledger.Keys)
+    ensures valid()
+
 
 
   method deposit(amount : nat, from : Account) returns (b : bool)
-    requires obeys() ==> valid()
+    requires valid()
 
     modifies myBank`ledger
 
@@ -43,7 +50,9 @@ trait Account {
      ensures (obeys() && from.obeys() && old(canDepositFrom(amount, from))) ==> (b ==> (myBank.ledger[this] == (old(myBank.ledger[this]  ) + amount)))
      ensures (obeys() && from.obeys() && old(canDepositFrom(amount, from))) ==> (b ==> (myBank.ledger[from] == (old(myBank.ledger[from]) - amount)))
      ensures forall account <- old(myBank.ledger) | (account !in {this, from}) && account.obeys() :: account in myBank.ledger.Keys && myBank.ledger[account] == old(myBank.ledger[account])
-     ensures obeys() ==> valid()
+     ensures obeys() ==> (forall account <- myBank.ledger :: account.valid())
+
+     ensures valid()
 
 
   function balance() : (b : nat)
@@ -124,24 +133,37 @@ class GoodAccount extends Account {
      ensures myBank.ledger == old(aBank.ledger)[this := 0]
      ensures obeys()
      ensures myBank is GoodBank
+     ensures obeys() ==> (forall account <- myBank.ledger :: account.valid())
+     ensures aBank.ledger.Keys >= old(aBank.ledger.Keys)
+
      ensures valid()
     { myBank := aBank;
       new;
+      assert this !in aBank.ledger.Keys;
       myBank.ledger := myBank.ledger[this := 0];
+      assert  myBank.ledger.Keys >= old(aBank.ledger.Keys);
       reveal obeys();
     }
 
   method sprout() returns (account : Account)
-    requires obeys() ==> valid()
+    requires valid()
+    requires obeys() ==> (forall account <- myBank.ledger :: account.valid())
 
-    modifies myBank`ledger
-     ensures account in myBank.ledger
-     ensures account.myBank == myBank
-     ensures fresh(account)
-     ensures myBank.ledger == old(myBank.ledger)[account := 0]
+   modifies myBank`ledger
 
-    ensures account.obeys()
+    ensures account.valid()
+    ensures account.myBank == myBank
+    ensures obeys() ==> (account in myBank.ledger)
+    ensures obeys() ==> (fresh(account))
 
+    ensures obeys() ==> account.obeys()
+
+    ensures obeys() ==> (myBank.ledger == old(myBank.ledger)[account := 0])
+    ensures obeys() ==> (forall k <- old(myBank.ledger.Keys) :: myBank.ledger[k] == old(myBank.ledger[k]))
+    ensures obeys() ==> (forall account <- myBank.ledger :: account.valid())
+    ensures myBank.ledger.Keys >= old(myBank.ledger.Keys)
+
+    ensures valid()
     {
       reveal obeys();
       account := new GoodAccount(myBank);
@@ -149,7 +171,7 @@ class GoodAccount extends Account {
 
 
   method {:isolate_assertions} deposit(amount : nat, from : Account) returns (b : bool)
-    requires obeys() ==> valid()
+    requires valid()
 
     modifies myBank`ledger
 
@@ -162,7 +184,7 @@ class GoodAccount extends Account {
      ensures (obeys() && from.obeys() && old(canDepositFrom(amount, from))) ==> (b ==> (myBank.ledger[this]   == (old(myBank.ledger[this]  ) + amount)))
      ensures (obeys() && from.obeys() && old(canDepositFrom(amount, from))) ==> (b ==> (myBank.ledger[from] == (old(myBank.ledger[from]) - amount)))
      ensures forall account <- old(myBank.ledger) | (account !in {this, from}) && account.obeys() :: account in myBank.ledger.Keys && myBank.ledger[account] == old(myBank.ledger[account])
-     ensures obeys() ==> valid()
+     ensures valid()
 
   {
     reveal obeys();
@@ -366,13 +388,20 @@ method {:isolate_assertions} dealV2(sellerMoney : Account, sellerGoods : Account
 //note **doesn't handle exceptions properly**
 //if Dafny has "exceptions" which I don't think it really does
 
-   requires sellerMoney.obeys() ==> sellerMoney.valid()
-   requires sellerGoods.obeys() ==> sellerGoods.valid()
-   requires buyerMoney.obeys()  ==> buyerMoney.valid()
-   requires buyerGoods.obeys()  ==> buyerGoods.valid()
+   requires sellerMoney.valid()
+   requires sellerGoods.valid()
+   requires buyerMoney.valid()
+   requires buyerGoods.valid()
+//
+//    requires sellerMoney.obeys() ==> sellerMoney.valid()
+//    requires sellerGoods.obeys() ==> sellerGoods.valid()
+//    requires buyerMoney.obeys()  ==> buyerMoney.valid()
+//    requires buyerGoods.obeys()  ==> buyerGoods.valid()
 
-   requires sellerMoney.canDepositFrom(price, buyerMoney)
-   requires buyerGoods.canDepositFrom(amount, sellerGoods)
+
+
+  //  requires sellerMoney.canDepositFrom(price, buyerMoney)
+  //  requires buyerGoods.canDepositFrom(amount, sellerGoods)
 
    requires (sellerMoney.myBank != buyerGoods.myBank)
    requires (sellerGoods.myBank != buyerMoney.myBank)
@@ -387,17 +416,45 @@ method {:isolate_assertions} dealV2(sellerMoney : Account, sellerGoods : Account
   {
 
   //setup and validate Money purses
+                                                          assert sellerMoney.valid();
+    assume sellerMoney is GoodAccount;
+      assert (sellerMoney.myBank is GoodBank);
+      assert (sellerMoney in sellerMoney.myBank.ledger.Keys);
+      assert (forall account <- sellerMoney.myBank.ledger.Keys :: (account.myBank == sellerMoney.myBank) && (account is GoodAccount) && account.obeys());
+
+ assert buyerMoney.valid();
+ assert buyerMoney in buyerMoney.myBank.ledger.Keys;
+
   var escrowMoney := sellerMoney.sprout();
+
+  assert escrowMoney.valid();
+  assert sellerMoney.valid();
+//  assert buyerMoney.valid();
+
+  if (buyerMoney.myBank == sellerMoney.myBank)
+     {
+      assert buyerMoney.myBank.ledger == sellerMoney.myBank.ledger;
+
+      assert buyerMoney in buyerMoney.myBank.ledger.Keys;
+      assert buyerMoney in sellerMoney.myBank.ledger.Keys;
+      assert buyerMoney.valid();
+     }
+else
+{
+  assert unchanged(buyerMoney.myBank`ledger);
+  assert buyerMoney.valid();
+}
                                                           assert sellerMoney.obeys() ==> sellerMoney.valid();
                                                           assert sellerMoney.obeys() ==> escrowMoney.obeys();
                                                           assert sellerMoney.obeys() ==> (escrowMoney.obeys() ==> escrowMoney.valid());
                                                           assert (sellerMoney.obeys() && escrowMoney.obeys()) ==> (sellerMoney.obeys() ==> escrowMoney.valid());
                                                           assert (sellerMoney.obeys() ==> escrowMoney.valid());
                                                           assert  sellerMoney.obeys() ==> (sellerMoney.myBank == escrowMoney.myBank);
-assume sellerMoney.obeys();
+                                                          assert buyerMoney.valid();
 
   res := escrowMoney.deposit(0,sellerMoney);
   if (!res)  {return false;}
+                                                          assert buyerMoney.valid();
   res := buyerMoney.deposit(0,escrowMoney);
   if (!res)  {return false;}
   res := escrowMoney.deposit(0,buyerMoney);
@@ -508,29 +565,25 @@ class BadAccount extends Account {
       reveal obeys();
     }
 
-  method sprout() returns (account : Account)
+  method {:isolate_assertions} sprout() returns (account : Account)
+    requires valid()
+    requires obeys() ==> (forall account <- myBank.ledger :: account.valid())
 
-    requires obeys() ==> valid()
+   modifies myBank`ledger
 
-    modifies myBank`ledger
+    ensures account.valid()
+    ensures account.myBank == myBank
+    ensures obeys() ==> (account in myBank.ledger)
+    ensures obeys() ==> (fresh(account))
 
     ensures obeys() ==> account.obeys()
 
-    ensures obeys() ==> (account in myBank.ledger)
-    ensures obeys() ==> (fresh(account))
     ensures obeys() ==> (myBank.ledger == old(myBank.ledger)[account := 0])
     ensures obeys() ==> (forall k <- old(myBank.ledger.Keys) :: myBank.ledger[k] == old(myBank.ledger[k]))
-    ensures obeys() ==> valid()
+    ensures obeys() ==> (forall account <- myBank.ledger :: account.valid())
 
-    requires obeys() ==> valid()
-
-    modifies myBank`ledger
-     ensures account.myBank == myBank
-     ensures account.obeys() ==> (account in myBank.ledger)
-     ensures account.obeys() ==> fresh(account)
-     ensures account.obeys() ==> (myBank.ledger == old(myBank.ledger)[account := 0])
-
-    ensures obeys() ==> valid()
+    ensures myBank.ledger.Keys >= old(myBank.ledger.Keys)
+    ensures valid()
 
     {
       reveal obeys();
@@ -557,7 +610,7 @@ class BadAccount extends Account {
      ensures (obeys() && from.obeys() && old(canDepositFrom(amount, from))) ==> (b ==> (myBank.ledger[from] == (old(myBank.ledger[from]) - amount)))
      ensures forall account <- old(myBank.ledger) | (account !in {this, from}) && account.obeys() :: account in myBank.ledger.Keys && myBank.ledger[account] == old(myBank.ledger[account])
      ensures obeys() ==> valid()
-
+     ensures obeys() ==> (forall account <- myBank.ledger :: account.valid())
   {
     reveal obeys();
 
