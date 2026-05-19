@@ -391,6 +391,7 @@ method {:isolate_assertions} dealV2(sellerMoney : Account, sellerGoods : Account
   //  )
 {
    var escrowMoney := sellerMoney.sprout();
+   var escrowGoods := buyerGoods.sprout();
                                                   // assert sellerMoney.obeys() ==> escrowMoney.obeys();
                                                   // assert sellerMoney.obeys() ==> (escrowMoney !in {sellerMoney, sellerGoods, buyerMoney, buyerGoods});
                                                   // // assert escrowMoney.canDepositFrom(0, sellerMoney);
@@ -435,7 +436,7 @@ method {:isolate_assertions} dealV2(sellerMoney : Account, sellerGoods : Account
                                                 //  assert sellerMoney.obeys() ==> (escrowMoney.balance() == 0);
 
   //setup and validate Goods purses
-  var escrowGoods := buyerGoods.sprout();
+
   res := escrowGoods.deposit(0,buyerGoods);
   if (!res)  {return false;}
   res := sellerGoods.deposit(0,escrowGoods);
