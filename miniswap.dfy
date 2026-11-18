@@ -445,6 +445,8 @@ method dealV0(sellerMoney : Account, sellerGoods : Account, price : nat,
    requires forall a <- sellerGoods.myBank.ledger.Keys :: (a.myBank == sellerGoods.myBank) && (a is GoodAccount) && (a.valid())
    requires forall a <- buyerGoods.myBank.ledger.Keys  :: (a.myBank == buyerGoods.myBank)  && (a is GoodAccount) && (a.valid())
 
+   requires ({sellerMoney}+sellerMoney.Repr+(sellerMoney.myBank.ledger.Keys) + {buyerMoney}+buyerMoney.Repr+(buyerMoney.myBank.ledger.Keys)) !!
+            ({sellerGoods}+sellerGoods.Repr+(sellerGoods.myBank.ledger.Keys) + {buyerGoods}+buyerGoods.Repr+(buyerGoods.myBank.ledger.Keys))
 
   //  modifies sellerMoney.myBank`ledger, buyerMoney.myBank`ledger
   //  modifies sellerGoods.myBank`ledger, buyerGoods.myBank`ledger
